@@ -5,9 +5,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#if defined(COMPRESS)
-#include "zlib.h"
-#endif
 
 #if defined(RES_VGA)
 #define IMG_WIDTH 640
@@ -21,10 +18,6 @@
 #define CLIENT_PORT 5567
 #define PKT_SIZE 51200
 #define FID_SIZE 11
-#if defined(COMPRESS)
-#define PAYLOAD_SIZE 6
-#define msleep(n) usleep(n*1000)
-#endif
 
 using namespace std;
 using namespace xn;
@@ -50,10 +43,6 @@ int main( int argc, char* argv[] )
     char buf[BUFSIZ];
     struct sockaddr_in myaddr;
     struct sockaddr_in client_addr;
-
-    char frame_id[FID_SIZE] = {0};
-
-#if !defined(COMPRESS)
     char *data1;
     char *data2;
     char *data3;
@@ -68,6 +57,7 @@ int main( int argc, char* argv[] )
     char *data11;
     char *data12;
 #endif
+    char frame_id[FID_SIZE] = {0};
    
     data1 = (char*)malloc((PKT_SIZE + FID_SIZE)*sizeof(char));
     data2 = (char*)malloc((PKT_SIZE + FID_SIZE)*sizeof(char));
@@ -82,11 +72,6 @@ int main( int argc, char* argv[] )
     data10 = (char*)malloc((PKT_SIZE + FID_SIZE)*sizeof(char));
     data11 = (char*)malloc((PKT_SIZE + FID_SIZE)*sizeof(char));
     data12 = (char*)malloc((PKT_SIZE + FID_SIZE)*sizeof(char));
-#endif
-#else
-    char *zData1;
-    zData1 = (char*)malloc((PKT_SIZE + FID_SIZE + PAYLOAD_SIZE)*sizeof(char));
-    char payload_size[PAYLOAD_SIZE] = {0};
 #endif
 
     // 2. Prepare UDP socket 
@@ -110,21 +95,18 @@ int main( int argc, char* argv[] )
 
     DepthMetaData mDepthMD;
 
-    //while ( !xnOSWasKeyboardHit() )
-    while ( true )
+    while ( !xnOSWasKeyboardHit() )
     {
         client_addr.sin_family = AF_INET;
         client_addr.sin_port = htons(CLIENT_PORT);
         inet_aton(argv[1], &client_addr.sin_addr);
 
         cout << "Received data from " << inet_ntoa(client_addr.sin_addr) << " : " << htons(client_addr.sin_port) << endl;
-        //while ( !xnOSWasKeyboardHit() )
-        while ( true )
+        while ( !xnOSWasKeyboardHit() )
         {
             mContext.WaitOneUpdateAll(mDepthGen);
             mDepthGen.GetMetaData(mDepthMD);
             sprintf(frame_id, "%d", mDepthMD.FrameID());
-#if !defined(COMPRESS)
             *data1 = 'A';
             *data2 = 'B';
             *data3 = 'C';
@@ -165,72 +147,7 @@ int main( int argc, char* argv[] )
             memcpy(data12 + 1, frame_id, FID_SIZE);
             memcpy(data12 + FID_SIZE, mDepthMD.Data() + 5 * PKT_SIZE + PKT_SIZE/2, PKT_SIZE);
 #endif
-#else
-            int err;
-            Byte *zData;
-            zData = (Byte*)calloc(IMG_WIDTH*IMG_HEIGHT*2, 1);
-            uLong len = (uLong)(IMG_WIDTH*IMG_HEIGHT*2);
-            uLong zDataLen = (uLong)(IMG_WIDTH*IMG_HEIGHT*2);
-            err = compress2(zData, &zDataLen, (const Bytef*)mDepthMD.Data(), len, Z_BEST_COMPRESSION);
-            if (err != Z_OK) {
-                switch (err) {
-                    case Z_ERRNO:
-                        cout << "frame_id : " << frame_id << " compress error: Z_ERRNO" << endl;
-                        break;
-                    case Z_STREAM_ERROR:
-                        cout << "frame_id : " << frame_id << " compress error: Z_STREAM_ERROR" << endl;
-                        break;
-                    case Z_DATA_ERROR:
-                        cout << "frame_id : " << frame_id << " compress error: Z_DATA_ERROR" << endl;
-                        break;
-                    case Z_MEM_ERROR:
-                        cout << "frame_id : " << frame_id << " compress error: Z_MEM_ERROR" << endl;
-                        break;
-                    case Z_BUF_ERROR:
-                        cout << "frame_id : " << frame_id << " compress error: Z_BUF_ERROR" << endl;
-                        break;
-                    case Z_VERSION_ERROR:
-                        cout << "frame_id : " << frame_id << " compress error: Z_VERSION_ERROR" << endl;
-                        break;
-                    default:
-                        cout << "frame_id : " << frame_id << " compress error: " << err << endl;
-                        break;
-                }
-                break;
-            } else {
-                cout << "frame_id : " << frame_id << ", zDataLen : " << zDataLen << ", mDepthMD.DataSize() : " << mDepthMD.DataSize() << endl;
-                const char payload_offset[] = "ABCDEFGHIJKL";
-                int index = 0;
-                int add = 0;
-
-                while(zDataLen > 0) {
-                    memset(zData1, 0, PKT_SIZE + FID_SIZE + PAYLOAD_SIZE);
-                    if (zDataLen > PKT_SIZE) {
-                        sprintf(payload_size, "%d", PKT_SIZE);
-                        memset(zData1, *(payload_offset + index), 1);
-                        memcpy(zData1 + 1, frame_id, FID_SIZE);
-                        memcpy(zData1 + FID_SIZE, &payload_size, PAYLOAD_SIZE);
-                        memcpy(zData1 + FID_SIZE + PAYLOAD_SIZE, zData + add, PKT_SIZE);
-                        zDataLen -= PKT_SIZE;
-                        add += PKT_SIZE;
-                    } else {
-                        sprintf(payload_size, "%d", (int)zDataLen);
-                        memset(zData1, *(payload_offset + index), 1);
-                        memcpy(zData1 + 1, frame_id, FID_SIZE);
-                        memcpy(zData1 + FID_SIZE, &payload_size, strlen(payload_size));
-                        memcpy(zData1 + FID_SIZE + PAYLOAD_SIZE, zData + add, zDataLen);
-                        zDataLen = 0;
-                    }
-                    index++;
-                    sendto( socket_fd, (char*)zData1, PKT_SIZE + FID_SIZE + PAYLOAD_SIZE, 0, (struct sockaddr*)&client_addr, length);
-                    msleep(30);
-                }
-                add = 0;
-            }
-            std::free(zData);
-#endif
             length = sizeof(client_addr);
-#if !defined(COMPRESS)
             sendto( socket_fd, data1, PKT_SIZE + FID_SIZE, 0, (struct sockaddr*)&client_addr, length);
             sendto( socket_fd, data2, PKT_SIZE + FID_SIZE, 0, (struct sockaddr*)&client_addr, length);
             sendto( socket_fd, data3, PKT_SIZE + FID_SIZE, 0, (struct sockaddr*)&client_addr, length);
@@ -245,9 +162,6 @@ int main( int argc, char* argv[] )
             sendto( socket_fd, data11, PKT_SIZE + FID_SIZE, 0, (struct sockaddr*)&client_addr, length);
             sendto( socket_fd, data12, PKT_SIZE + FID_SIZE, 0, (struct sockaddr*)&client_addr, length);
 #endif
-#endif
-
-
         }
     }
 
@@ -255,7 +169,6 @@ int main( int argc, char* argv[] )
 
     mContext.Release();
 
-#if !defined(COMPRESS)
     free(data1);
     free(data2);
     free(data3);
@@ -269,9 +182,6 @@ int main( int argc, char* argv[] )
     free(data10);
     free(data11);
     free(data12);
-#endif
-#else
-    free(zData1);
 #endif
     return 0;
 }
