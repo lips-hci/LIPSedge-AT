@@ -11,15 +11,21 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#if defined(COMPRESS)
 #include "zlib.h"
+#endif
 
 #define SERV_PORT 5567
 
 #define IMG_WIDTH 640
 #define IMG_HEIGHT 480
-#define RDDATA_SIZE 210000
 #define FID_SIZE 11
+#if defined(COMPRESS)
+#define RDDATA_SIZE 210000
 #define PAYLOAD_SIZE 7
+#else
+#define RDDATA_SIZE 614400
+#endif
 
 using namespace std;
 using namespace cv;
@@ -30,10 +36,15 @@ int main( int argc, char* argv[] )
     struct hostent *hp;   /* holds IP address of server */
     struct sockaddr_in servaddr; /* the server's full addr */
     char *data;
-    char *data_all;
+    char *dataAll;
 
+#if defined(COMPRESS)
     data = (char*)malloc((RDDATA_SIZE) * sizeof(char));
-    data_all = (char*)malloc((RDDATA_SIZE) * sizeof(char));
+    dataAll = (char*)malloc((RDDATA_SIZE) * sizeof(char));
+#else
+    data = (char*)malloc((RDDATA_SIZE + FID_SIZE) * sizeof(char));
+    dataAll = (char*)malloc((RDDATA_SIZE + FID_SIZE) * sizeof(char));
+#endif
 
     // 1. Get a socket into TCP/IP
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -62,48 +73,82 @@ int main( int argc, char* argv[] )
         return 1;
     }
 
+#if defined(COMPRESS)
     Byte *uzData;
     char payload_size[PAYLOAD_SIZE] = {0};
-    char serial_str[FID_SIZE] = {0};
     int err = 0;
-    int nbytes = 0;
-    int total = 0;
     uzData = (Byte*)malloc((IMG_WIDTH * IMG_HEIGHT * 2) * sizeof(Byte));
+#else
+    int readLen = RDDATA_SIZE + FID_SIZE;
+#endif
+
+    char serialStr[FID_SIZE] = {0};
+    int nbytes = 0;
+    int readTotal = 0;
 
     while (true) {
-        memset(data, 0, RDDATA_SIZE);
-        uLong uzDataLen = (uLong)(IMG_WIDTH * IMG_HEIGHT * 2 );
+#if defined(COMPRESS)
+        uLong uzDataLen = (uLong)(IMG_WIDTH * IMG_HEIGHT * 2);
         uLong len = 0;
-        int serial_num = 0;
+        memset(uzData, 0, IMG_WIDTH * IMG_HEIGHT * 2);
+#endif
+        int serialNum = 0;
 
+#if defined(COMPRESS)
         nbytes = read(fd, data, RDDATA_SIZE);
+#else
+        if (readLen >= nbytes)
+            nbytes = read(fd, data, (RDDATA_SIZE + FID_SIZE));
+        else
+            nbytes = read(fd, data, readLen);
+#endif
 
         if (nbytes == -1) {
             cout << "read from server error !" << endl;
             return 1;
+#if defined(COMPRESS)
         } else if (nbytes != RDDATA_SIZE) {
-            memcpy(data_all + total, data, nbytes);
-            total = nbytes + total;
+            memcpy(dataAll + readTotal, data, nbytes);
+            readTotal = nbytes + readTotal;
+#else
+        } else if ((readTotal + nbytes) > (RDDATA_SIZE + FID_SIZE)) {
+            cout << "Data reading too much!!" << endl;
+            memset(dataAll, 0, (RDDATA_SIZE + FID_SIZE));
+            memset(data, 0, (RDDATA_SIZE + FID_SIZE));
+            memcpy(dataAll, data, nbytes - (RDDATA_SIZE + FID_SIZE - readTotal));
+            readLen = RDDATA_SIZE + FID_SIZE - (nbytes - (RDDATA_SIZE + FID_SIZE - readTotal));
+            readTotal = nbytes - (RDDATA_SIZE + FID_SIZE - readTotal);
+        } else if (nbytes != (RDDATA_SIZE + FID_SIZE)) {
+            memcpy(dataAll + readTotal, data, nbytes);
+            readLen -= nbytes;
+            readTotal += nbytes;
+            //cout << "nbytes = " << nbytes << ", readTotal = " << readTotal << endl;
+#endif
         }
 
-        cout << "nbytes = " << nbytes << ", total = " << total << endl;
-
-        if ((nbytes == RDDATA_SIZE) || (total == RDDATA_SIZE)) {
-
-            if (total == RDDATA_SIZE) {
-                    memset(data, 0 , RDDATA_SIZE);
-                    memcpy(data, data_all, RDDATA_SIZE);
+#if defined(COMPRESS)
+        if ((nbytes == RDDATA_SIZE) || (readTotal == RDDATA_SIZE)) {
+            if (readTotal == RDDATA_SIZE) {
+                memset(data, 0 , RDDATA_SIZE);
+                memcpy(data, dataAll, RDDATA_SIZE);
             }
+#else
+        if ((nbytes == (RDDATA_SIZE + FID_SIZE)) || (readTotal == (RDDATA_SIZE + FID_SIZE))) {
+            if (readTotal == (RDDATA_SIZE + FID_SIZE))
+                memcpy(data, dataAll, (RDDATA_SIZE + FID_SIZE));
+#endif
 
-            memset(uzData, 0, IMG_WIDTH * IMG_HEIGHT * 2);
-            memcpy(serial_str, data, FID_SIZE);
-            serial_num = atoi(serial_str);
+            memcpy(serialStr, data, FID_SIZE);
+            serialNum = atoi(serialStr);
+
+            cout << "frame_id = " << serialNum << endl;
+
+#if defined(COMPRESS)
             memcpy(payload_size, data + FID_SIZE, PAYLOAD_SIZE - 1);
             len = (uLong)atoi(payload_size);
-
             err = uncompress(uzData, &uzDataLen, (Bytef*)(data + FID_SIZE + PAYLOAD_SIZE), len);
 
-            cout << "frame_id = " << serial_num << ", payload_size = " << len << ", uzDataLen = " << uzDataLen << endl;
+            cout << "frame_id = " << serialNum << ", payload_size = " << len << ", uzDataLen = " << uzDataLen << endl;
 
             if (err != Z_OK) {
                 switch (err) {
@@ -130,23 +175,37 @@ int main( int argc, char* argv[] )
                         break;
                 }
             } else {
-                Mat imgDepth( IMG_HEIGHT, IMG_WIDTH, CV_16UC1, ( void* )(uzData) );
+                Mat imgDepth( IMG_HEIGHT, IMG_WIDTH, CV_16UC1, ( void* )(uzData));
                 Mat img8bitDepth;
-                imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 4096.0 );
-                imshow( "Depth view", img8bitDepth );
+                imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 4096.0);
+                imshow( "Depth view", img8bitDepth);
                 waitKey( 1 );
             }
 
             nbytes = 0;
-            total = 0;
-            memset(data_all, 0, RDDATA_SIZE);
+            readTotal = 0;
+            memset(dataAll, 0, RDDATA_SIZE);
+#else
+            Mat imgDepth( IMG_HEIGHT, IMG_WIDTH, CV_16UC1, ( void* )(data + FID_SIZE));
+            Mat img8bitDepth;
+            imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 4096.0);
+            imshow( "Depth view", img8bitDepth);
+            waitKey( 1 );
+
+            nbytes = 0;
+            readTotal = 0;
+            readLen = RDDATA_SIZE + FID_SIZE;
+            memset(dataAll, 0, (RDDATA_SIZE + FID_SIZE));
+            memset(data, 0, (RDDATA_SIZE + FID_SIZE));
+#endif
         }
+    } 
 
-    }
-
+#if defined(COMPRESS)
     free(uzData);
+#endif
     free(data);
-    free(data_all);
-    close (fd);
+    free(dataAll);
+    close(fd);
     return 0;
 }

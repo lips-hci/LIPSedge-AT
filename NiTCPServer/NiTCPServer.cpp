@@ -6,7 +6,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#if defined(COMPRESS)
 #include "zlib.h"
+#endif
 
 #define SERV_PORT 5567
 
@@ -14,8 +16,13 @@
 #define IMG_HEIGHT 480
 #define IMG_FPS 30
 #define FID_SIZE 11
-#define PAYLOAD_SIZE 7
+
+#if defined(COMPRESS)
 #define WRDATA_SIZE 210000
+#define PAYLOAD_SIZE 7
+#else
+#define WRDATA_SIZE 614400
+#endif
 
 using namespace std;
 using namespace xn;
@@ -80,25 +87,31 @@ int main( int argc, char* argv[] )
 
     char frame_id[FID_SIZE] = {0};
     int err = 0;
-    char payload_size[PAYLOAD_SIZE] = {0};
     char *data;
+#if defined(COMPRESS)
+    char payload_size[PAYLOAD_SIZE] = {0};
     Byte *zData;
+    zData = (Byte*)malloc((IMG_WIDTH * IMG_HEIGHT * 2) * sizeof(Byte));
+    data = (char*)malloc(WRDATA_SIZE * sizeof(char));
+#else
+    data = (char*)malloc((WRDATA_SIZE + FID_SIZE) * sizeof(char));
+#endif
 
     mContext.StartGeneratingAll();
     DepthMetaData mDepthMD;
 
     //while (!xnOSWasKeyboardHit()) {
     while (true) {
+#if defined(COMPRESS)
         uLong len = (uLong)(IMG_WIDTH * IMG_HEIGHT * 2);
         uLong zDataLen = (uLong)(IMG_WIDTH * IMG_HEIGHT * 2);
-        zData = (Byte*)malloc((IMG_WIDTH * IMG_HEIGHT * 2) * sizeof(Byte));
-        data = (char*)malloc(WRDATA_SIZE * sizeof(char));
-
+#endif
         mContext.WaitOneUpdateAll(mDepthGen);
         mDepthGen.GetMetaData(mDepthMD);
 
         sprintf(frame_id, "%d", mDepthMD.FrameID());
 
+#if defined(COMPRESS)
         err = compress2(zData, &zDataLen, (const Bytef*)mDepthMD.Data(), len, Z_BEST_COMPRESSION);
         if (err != Z_OK)
             switch (err) {
@@ -129,19 +142,36 @@ int main( int argc, char* argv[] )
         sprintf(payload_size, "%d", (int)zDataLen);
         memcpy(data + FID_SIZE, &payload_size, PAYLOAD_SIZE);
         memcpy(data + FID_SIZE + PAYLOAD_SIZE, zData, zDataLen);
-
         cout << "Frame ID = " << mDepthMD.FrameID() << ", Frame data size = " << mDepthMD.DataSize() << ", zDataLen = " << zDataLen << endl;
+#else
+        memcpy(data, frame_id, FID_SIZE);
+        memcpy(data + FID_SIZE, mDepthMD.Data(), WRDATA_SIZE);
+        cout << "Frame ID = " << mDepthMD.FrameID() << ", Frame data size = " << mDepthMD.DataSize() << endl;
+#endif
 
+#if defined(COMPRESS)
         if (write(recfd, (char*)data, WRDATA_SIZE) == -1) {
+#else
+        if (write(recfd, (char*)data, (WRDATA_SIZE + FID_SIZE)) == -1) {
+#endif
             cout << "write to client error" << endl;
             return 1;
         }
 
-        free(zData);
-        free(data);
+#if defined(COMPRESS)
+        memset(zData, 0, (IMG_WIDTH * IMG_HEIGHT * 2));
+        memset(data, 0, WRDATA_SIZE);
+#else
+        memset(data, 0, (WRDATA_SIZE + FID_SIZE));
+#endif
     }
 
+#if defined(COMPRESS)
+    free(zData);
+#endif
+    free(data);
     close(socket_fd);
     close(recfd);
     return 0;
 }
+
