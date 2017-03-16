@@ -30,6 +30,14 @@
 using namespace std;
 using namespace cv;
 
+void showview(char *data) {
+    Mat imgDepth( IMG_HEIGHT, IMG_WIDTH, CV_16UC1, ( void* )(data));
+    Mat img8bitDepth;
+    imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 4096.0);
+    imshow( "Depth view", img8bitDepth);
+    waitKey( 1 );
+}
+
 int main( int argc, char* argv[] )
 {
     int fd;      /* fd into transport provider */
@@ -113,11 +121,19 @@ int main( int argc, char* argv[] )
 #else
         } else if ((readTotal + nbytes) > (RDDATA_SIZE + FID_SIZE)) {
             cout << "Data reading too much!!" << endl;
-            memset(dataAll, 0, (RDDATA_SIZE + FID_SIZE));
-            memset(data, 0, (RDDATA_SIZE + FID_SIZE));
-            memcpy(dataAll, data, nbytes - (RDDATA_SIZE + FID_SIZE - readTotal));
+            memcpy(dataAll + readTotal, data, (RDDATA_SIZE + FID_SIZE - readTotal));
+            {
+                memcpy(serialStr, dataAll, FID_SIZE);
+                serialNum = atoi(serialStr);
+                cout << "frame_id = " << serialNum << endl;
+                showview(dataAll + FID_SIZE);
+                memset(dataAll, 0, (RDDATA_SIZE + FID_SIZE));
+            }
+            //cout << "nbytes = " << nbytes << ", readTotal = " << readTotal << endl;
+            memcpy(dataAll, data + (RDDATA_SIZE + FID_SIZE - readTotal), nbytes - (RDDATA_SIZE + FID_SIZE - readTotal));
             readLen = RDDATA_SIZE + FID_SIZE - (nbytes - (RDDATA_SIZE + FID_SIZE - readTotal));
             readTotal = nbytes - (RDDATA_SIZE + FID_SIZE - readTotal);
+
         } else if (nbytes != (RDDATA_SIZE + FID_SIZE)) {
             memcpy(dataAll + readTotal, data, nbytes);
             readLen -= nbytes;
@@ -175,22 +191,14 @@ int main( int argc, char* argv[] )
                         break;
                 }
             } else {
-                Mat imgDepth( IMG_HEIGHT, IMG_WIDTH, CV_16UC1, ( void* )(uzData));
-                Mat img8bitDepth;
-                imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 4096.0);
-                imshow( "Depth view", img8bitDepth);
-                waitKey( 1 );
+                showview(uzData);
             }
 
             nbytes = 0;
             readTotal = 0;
             memset(dataAll, 0, RDDATA_SIZE);
 #else
-            Mat imgDepth( IMG_HEIGHT, IMG_WIDTH, CV_16UC1, ( void* )(data + FID_SIZE));
-            Mat img8bitDepth;
-            imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 4096.0);
-            imshow( "Depth view", img8bitDepth);
-            waitKey( 1 );
+            showview(data + FID_SIZE);
 
             nbytes = 0;
             readTotal = 0;
