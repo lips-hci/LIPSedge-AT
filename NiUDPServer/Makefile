@@ -3,8 +3,8 @@ CPPFLAGS = -Dlinux -DRES_VGA -DCOMPRESS -I../../Include -std=c++11 -O2
 LDFLAGS = -L../../Lib -lOpenNI
 
 # zlib
-CPPFLAGS += -I./zlib/include
-LDFLAGS += -L./zlib/lib -lz
+CPPFLAGS += -I/zlib/include
+LDFLAGS += -L/zlib/lib -lz
 
 LOCAL_TARGET = NiUDPServer
 
