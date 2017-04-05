@@ -35,6 +35,11 @@ int main( int argc, char* argv[] )
     struct sockaddr_in myaddr; /* address of this service */
     struct sockaddr_in client_addr; /* address of client    */
 
+    if ( argc < 2 ) {
+        cout << "No Client IP address" << endl;
+        return 1;
+    }
+
     // 1. Prepare OpenNI context and depth generator
     Context mContext;
     mContext.Init();
