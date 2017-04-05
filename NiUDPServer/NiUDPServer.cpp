@@ -31,6 +31,12 @@ using namespace xn;
 
 int main( int argc, char* argv[] )
 {
+
+    if ( argc < 2 ) {
+        cout << "No Client IP address" << endl;
+        return 1;
+    }
+
     // 1. Prepare OpenNI context and depth generator
     Context mContext;
     mContext.Init();
