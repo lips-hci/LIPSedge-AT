@@ -1,4 +1,4 @@
-SRC = ./NiPointClient.cpp
+SRC = ./NiPointCloud.cpp
 CPPFLAGS = -Dlinux -DRES_VGA -I../../Include -std=c++11
 LDFLAGS = -L../../Lib -lOpenNI
 
@@ -6,7 +6,7 @@ LDFLAGS = -L../../Lib -lOpenNI
 CPPFLAGS += -I/usr/local/include -O2
 LDFLAGS += -L/usr/local/lib -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_viz -lopencv_contrib
 
-LOCAL_TARGET = NiPointClient
+LOCAL_TARGET = NiPointCloud
 
 all: $(LOCAL_TARGET)
 
