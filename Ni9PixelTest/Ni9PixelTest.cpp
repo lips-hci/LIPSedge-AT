@@ -1,8 +1,9 @@
-// Ni9PixelTest.cpp : Defines the entry point for the console application.
-//
-
 #include "stdafx.h"
 
+#define QQQVGA_WIDTH 80
+#define QQQVGA_HEIGHT 60
+#define QQVGA_WIDTH 160
+#define QQVGA_HEIGHT 120
 #define QVGA_WIDTH 320
 #define QVGA_HEIGHT 240
 #define VGA_WIDTH 640
@@ -43,21 +44,28 @@ struct Points
     Point RB;
 };
 
-double calcSD( unsigned int *dataSet )
+double calcMean( unsigned int *dataSet )
 {
     double sum = 0;
+    double mean = 0;
+    for ( int i = 1; i <= g_recordingFrame; i++ )
+    {
+        sum += *( dataSet + i );
+    }
+    mean = sum / g_recordingFrame;
+    return mean;
+}
+
+double calcSD( unsigned int *dataSet )
+{
     double mean = 0;
     double dev = 0;
     double sdev = 0;
     double var = 0;
     double sd = 0;
-    unsigned int i = 0;
+    int i = 0;
 
-    for ( i = 1; i <= g_recordingFrame; i++ )
-    {
-        sum += *( dataSet + i );
-    }
-    mean = sum / g_recordingFrame;
+    mean = calcMean( dataSet );
     for ( i = 1; i <= g_recordingFrame; i++ )
     {
         dev = ( *( dataSet + i ) - mean ) * ( *( dataSet + i ) - mean );
@@ -77,6 +85,18 @@ void setResolution( char *res )
     }
     else if ( strcmp( res, "qvga" ) == 0 || strcmp( res, "QVGA" ) == 0 )
     {
+        g_xRes = QVGA_WIDTH;
+        g_yRes = QVGA_HEIGHT;
+    }
+    else if ( strcmp( res, "qqvga" ) == 0 || strcmp( res, "QQVGA" ) == 0 )
+    {
+        g_xRes = QQVGA_WIDTH;
+        g_yRes = QQVGA_HEIGHT;
+    }
+    else if ( strcmp( res, "qqqvga" ) == 0 || strcmp( res, "QQQVGA" ) == 0 )
+    {
+        g_xRes = QQQVGA_WIDTH;
+        g_yRes = QQQVGA_HEIGHT;
     }
     else
     {
@@ -262,25 +282,40 @@ int main( int argc, char* argv[] )
     unsigned int *mDataSet_B = ( unsigned int* ) calloc ( g_recordingFrame + 1, sizeof( unsigned int ) );
     unsigned int *mDataSet_RB = ( unsigned int* ) calloc ( g_recordingFrame + 1, sizeof( unsigned int ) );
     Points mPoints;
+    // cos(@) = 4/5
+    // sin(@) = 3/5
+    double hypotenuse = sqrt(pow(mapMode.nXRes * 0.5, 2) + pow(mapMode.nYRes * 0.5, 2)) * g_ratio;
+    double a_side = hypotenuse * 4 / 5; //hypotenuse * cos(@)
+    double b_side = hypotenuse * 3 / 5; //hypotenuse * sin(@)
 
-    mPoints.LT.x = ( unsigned )( mapMode.nXRes * ( 1 - g_ratio ) );
-    mPoints.LT.y = ( unsigned )( mapMode.nYRes * ( 1 - g_ratio ) );
-    mPoints.T.x = ( unsigned )( mapMode.nXRes / 2 );
-    mPoints.T.y = ( unsigned )( mapMode.nYRes * ( 1 - g_ratio ) );
-    mPoints.RT.x = ( unsigned )( mapMode.nXRes * g_ratio );
-    mPoints.RT.y = ( unsigned )( mapMode.nYRes * ( 1 - g_ratio ) );
-    mPoints.L.x = ( unsigned )( mapMode.nXRes * ( 1 - g_ratio ) );
-    mPoints.L.y = ( unsigned )( mapMode.nYRes / 2 );
-    mPoints.C.x = ( unsigned )( mapMode.nXRes / 2 );
-    mPoints.C.y = ( unsigned )( mapMode.nYRes / 2 );
-    mPoints.R.x = ( unsigned )( mapMode.nXRes * g_ratio );
-    mPoints.R.y = ( unsigned )( mapMode.nYRes / 2 );
-    mPoints.LB.x = ( unsigned )( mapMode.nXRes * ( 1 - g_ratio ) );
-    mPoints.LB.y = ( unsigned )( mapMode.nYRes * g_ratio );
-    mPoints.B.x = ( unsigned )( mapMode.nXRes / 2 );
-    mPoints.B.y = ( unsigned )( mapMode.nYRes * g_ratio );
-    mPoints.RB.x = ( unsigned )( mapMode.nXRes * g_ratio );
-    mPoints.RB.y = ( unsigned )( mapMode.nYRes * g_ratio );
+    mPoints.C.x = ( unsigned )( mapMode.nXRes * 0.5 );
+    mPoints.C.y = ( unsigned )( mapMode.nYRes * 0.5 );
+    mPoints.LT.x = ( unsigned )( mPoints.C.x - a_side );
+    mPoints.LT.y = ( unsigned )( mPoints.C.y - b_side );
+    mPoints.T.x = ( unsigned )( mPoints.C.x );
+    mPoints.T.y = ( unsigned )( mPoints.C.y - b_side );
+    mPoints.RT.x = ( unsigned )( mPoints.C.x + a_side );
+    mPoints.RT.y = ( unsigned )( mPoints.C.y - b_side);
+    mPoints.L.x = ( unsigned )( mPoints.C.x - a_side );
+    mPoints.L.y = ( unsigned )( mPoints.C.y );
+    mPoints.R.x = ( unsigned )( mPoints.C.x + a_side );
+    mPoints.R.y = ( unsigned )( mPoints.C.y );
+    mPoints.LB.x = ( unsigned )( mPoints.C.x - a_side );
+    mPoints.LB.y = ( unsigned )( mPoints.C.y + b_side );
+    mPoints.B.x = ( unsigned )( mPoints.C.x );
+    mPoints.B.y = ( unsigned )( mPoints.C.y + b_side );
+    mPoints.RB.x = ( unsigned )( mPoints.C.x + a_side );
+    mPoints.RB.y = ( unsigned )( mPoints.C.y + b_side );
+
+    cout << "LT (" << mPoints.LT.x << ", " << mPoints.LT.y << ")" << endl;
+    cout << "T (" << mPoints.T.x << ", " << mPoints.T.y << ")" << endl;
+    cout << "RT (" << mPoints.RT.x << ", " << mPoints.RT.y << ")" << endl;
+    cout << "L (" << mPoints.L.x << ", " << mPoints.L.y << ")" << endl;
+    cout << "C (" << mPoints.C.x << ", " << mPoints.C.y << ")" << endl;
+    cout << "R (" << mPoints.R.x << ", " << mPoints.R.y << ")" << endl;
+    cout << "LB (" << mPoints.LB.x << ", " << mPoints.LB.y << ")" << endl;
+    cout << "B (" << mPoints.B.x << ", " << mPoints.B.y << ")" << endl;
+    cout << "RB (" << mPoints.RB.x << ", " << mPoints.RB.y << ")" << endl;
 
     mContext.StartGeneratingAll();
 
@@ -293,7 +328,7 @@ int main( int argc, char* argv[] )
 	cout << "Test start ( " << g_xRes << "x" << g_yRes << " f=" << g_ratio << " K=" << g_recordingFrame << " b=" << g_blockSize << " )" << endl;
     cout << "Progress: ";
 
-    unsigned int i = 0;
+    int i = 0;
     unsigned int percent = 10;
     while ( i < ( g_recordingFrame + 1 ) )
     {
@@ -335,8 +370,30 @@ int main( int argc, char* argv[] )
     ofstream newfile( LOG_PATH );
     // row 1
     newfile << "point,LT,T,RT,L,C,R,LB,B,RB\n";
-    newfile << "deviation,";
 
+    // Print mean for each block
+    newfile << "mean,";
+    // LT
+    newfile << calcMean( mDataSet_LT ) << ",";
+    // T
+    newfile << calcMean( mDataSet_T ) << ",";
+    // RT
+    newfile << calcMean( mDataSet_RT ) << ",";
+    // L
+    newfile << calcMean( mDataSet_L ) << ",";
+    // C
+    newfile << calcMean( mDataSet_C ) << ",";
+    // R
+    newfile << calcMean( mDataSet_R ) << ",";
+    // LB
+    newfile << calcMean( mDataSet_LB ) << ",";
+    // B
+    newfile << calcMean( mDataSet_B ) << ",";
+    // RB
+    newfile << calcMean( mDataSet_RB ) << "\n";
+
+    // Print deviation for each block
+    newfile << "deviation,";
     // LT
     newfile << calcSD( mDataSet_LT ) << ",";
     // T
@@ -372,5 +429,3 @@ int main( int argc, char* argv[] )
     mContext.Release();
     return 0;
 }
-
-
