@@ -21,7 +21,8 @@
 #define WRDATA_SIZE 210000
 #define PAYLOAD_SIZE 7
 #else
-#define WRDATA_SIZE 614400
+#define TOFWRDATA_SIZE 614400
+#define RGBWRDATA_SIZE 921600
 #endif
 
 using namespace std;
@@ -52,6 +53,10 @@ int main( int argc, char* argv[] )
     DepthGenerator mDepthGen;
     mDepthGen.Create( mContext );
     mDepthGen.SetMapOutputMode( mapMode );
+
+    ImageGenerator mImageGen;
+    mImageGen.Create( mContext );
+    mImageGen.SetMapOutputMode( mapMode );
 
     // 2. Get a socket into TCP/IP
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -90,7 +95,8 @@ int main( int argc, char* argv[] )
         return 1;
     }
 
-    char frame_id[FID_SIZE] = {0};
+    char tof_frame_id[FID_SIZE] = {0};
+    char rgb_frame_id[FID_SIZE] = {0};
     int err = 0;
     char *data;
 #if defined(COMPRESS)
@@ -99,11 +105,12 @@ int main( int argc, char* argv[] )
     zData = (Byte*)malloc((IMG_WIDTH * IMG_HEIGHT * 2) * sizeof(Byte));
     data = (char*)malloc(WRDATA_SIZE * sizeof(char));
 #else
-    data = (char*)malloc((WRDATA_SIZE + FID_SIZE) * sizeof(char));
+    data = (char*)malloc((TOFWRDATA_SIZE + FID_SIZE + RGBWRDATA_SIZE + FID_SIZE) * sizeof(char));
 #endif
 
     mContext.StartGeneratingAll();
     DepthMetaData mDepthMD;
+    ImageMetaData mColor;
 
     //while (!xnOSWasKeyboardHit()) {
     while (true) {
@@ -111,10 +118,12 @@ int main( int argc, char* argv[] )
         uLong len = (uLong)(IMG_WIDTH * IMG_HEIGHT * 2);
         uLong zDataLen = (uLong)(IMG_WIDTH * IMG_HEIGHT * 2);
 #endif
-        mContext.WaitOneUpdateAll(mDepthGen);
+        mContext.WaitAndUpdateAll();
         mDepthGen.GetMetaData(mDepthMD);
+        mImageGen.GetMetaData(mColor);
 
-        sprintf(frame_id, "%d", mDepthMD.FrameID());
+        sprintf(tof_frame_id, "%d", mDepthMD.FrameID());
+        sprintf(rgb_frame_id, "%d", mColor.FrameID());
 
 #if defined(COMPRESS)
         err = compress2(zData, &zDataLen, (const Bytef*)mDepthMD.Data(), len, Z_BEST_COMPRESSION);
@@ -149,15 +158,18 @@ int main( int argc, char* argv[] )
         memcpy(data + FID_SIZE + PAYLOAD_SIZE, zData, zDataLen);
         cout << "Frame ID = " << mDepthMD.FrameID() << ", Frame data size = " << mDepthMD.DataSize() << ", zDataLen = " << zDataLen << endl;
 #else
-        memcpy(data, frame_id, FID_SIZE);
-        memcpy(data + FID_SIZE, mDepthMD.Data(), WRDATA_SIZE);
-        cout << "Frame ID = " << mDepthMD.FrameID() << ", Frame data size = " << mDepthMD.DataSize() << endl;
+        memcpy(data, tof_frame_id, FID_SIZE);
+        memcpy(data + FID_SIZE, mDepthMD.Data(), TOFWRDATA_SIZE);
+        memcpy(data + FID_SIZE + TOFWRDATA_SIZE, rgb_frame_id, FID_SIZE);
+        memcpy(data + FID_SIZE + TOFWRDATA_SIZE + FID_SIZE, mColor.Data(), RGBWRDATA_SIZE);
+
+        cout << "TOF Frame ID = " << mDepthMD.FrameID() << ", TOF Frame data size = " << mDepthMD.DataSize() << ", RGB Frame ID = " << mColor.FrameID() << ", RGB Frame data size = " << mColor.DataSize() << endl;
 #endif
 
 #if defined(COMPRESS)
         if (write(recfd, (char*)data, WRDATA_SIZE) == -1) {
 #else
-        if (write(recfd, (char*)data, (WRDATA_SIZE + FID_SIZE)) == -1) {
+        if (write(recfd, (char*)data, (TOFWRDATA_SIZE + FID_SIZE + RGBWRDATA_SIZE + FID_SIZE)) == -1) {
 #endif
             cout << "write to client error" << endl;
             return 1;
@@ -167,7 +179,7 @@ int main( int argc, char* argv[] )
         memset(zData, 0, (IMG_WIDTH * IMG_HEIGHT * 2));
         memset(data, 0, WRDATA_SIZE);
 #else
-        memset(data, 0, (WRDATA_SIZE + FID_SIZE));
+        memset(data, 0, (TOFWRDATA_SIZE + FID_SIZE + RGBWRDATA_SIZE + FID_SIZE));
 #endif
     }
 
