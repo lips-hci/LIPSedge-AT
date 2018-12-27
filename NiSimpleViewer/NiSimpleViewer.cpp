@@ -28,7 +28,7 @@ int main( int argc, char* argv[] )
     while ( true )
     {
         tStart = (double)getTickCount();
-        mContext.WaitAndUpdateAll();
+        mContext.WaitAnyUpdateAll();
 
         DepthMetaData depthData;
         mDepthGen.GetMetaData( depthData );
@@ -37,6 +37,7 @@ int main( int argc, char* argv[] )
         imgDepth.convertTo( img8bitDepth, CV_8U, 255.0 / 5000 );
         sprintf(fpsstr, "%.2f", 1.0 / (((double)getTickCount() - tStart) / getTickFrequency()));
         putText(img8bitDepth, string("FPS:") + fpsstr, Point(5, 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(200, 0, 0));
+        namedWindow( "Depth view", CV_WINDOW_NORMAL );
         imshow( "Depth view", img8bitDepth );
 
         ImageMetaData colorData;
