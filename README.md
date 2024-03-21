@@ -5,4 +5,4 @@
 
 #### LIPSedge DL ####
 - [Latest developer resources](https://lips-hci.gitbook.io/lips-developer-documentation)
-- [Depreated/Legacy] [User Guide on Wiki](https://github.com/lips-hci/openni_linux/wiki#lipsedge-dl-user-guide)
+- [Legacy] [User Guide on Wiki](https://github.com/lips-hci/openni_linux/wiki#lipsedge-dl-user-guide)
