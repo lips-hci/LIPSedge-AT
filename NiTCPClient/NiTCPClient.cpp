@@ -21,6 +21,7 @@
 #define IMG_HEIGHT 480
 #define FID_SIZE 11
 #define SERIAL_NUM 20
+#define OPT_SIZE 40
 
 #if defined(COMPRESS)
 #define RDDATA_SIZE 210000
@@ -126,9 +127,35 @@ int main( int argc, char* argv[] )
             nbytes = read(fd, data, readLen);
 #endif
 
+        static bool firstRead = true;
         if (nbytes == -1) {
             cout << "read from server error !" << endl;
             return 1;
+        } else if (nbytes == 10 && firstRead) {
+            firstRead = false;
+            //receive TCPServer version string, 3-digits, 10 chars
+            char serverVersion[11] = {'\0'};
+            strncpy(serverVersion, data, 10);
+            cout << "receive server version: " << serverVersion << endl;
+            //expect server is verson '001'
+            if (strcmp(serverVersion, "001"))
+            {
+                cout << "server version is not 001" << endl;
+                return 1;
+            }
+            //client has to reply 'suc' indicating 'success' to the server
+            if (write(fd, "suc", 3 * sizeof(char)) < 0)
+            {
+                cout << "fail to send message to server (" << strerror(errno) << ")" << endl;
+                return 1;
+            }
+            continue;
+        } else if (nbytes == OPT_SIZE) {
+            //receive TCPServer OPT info, 40 chars
+            char optInfo[OPT_SIZE] = {'\0'};
+            strncpy(optInfo, data, OPT_SIZE);
+            cout << "server opt info: " << optInfo << endl;
+            continue;
 #if defined(COMPRESS)
         } else if (nbytes != RDDATA_SIZE) {
             memcpy(dataAll + readTotal, data, nbytes);
