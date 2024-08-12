@@ -66,7 +66,7 @@ int main( int argc, char* argv[] )
 
     // 1. Get a socket into TCP/IP
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        cout << "socket failed!" << endl;
+        cout << "socket failed with error: " << strerror(errno) << endl;
         return 1;
     }
     cout << "socket created." << endl;
@@ -130,7 +130,7 @@ int main( int argc, char* argv[] )
         static bool firstRead = true;
         if (nbytes == -1) {
             cout << "read from server error !" << endl;
-            return 1;
+            break;
         } else if (nbytes == 10 && firstRead) {
             firstRead = false;
             //receive TCPServer version string, 3-digits, 10 chars
@@ -141,13 +141,13 @@ int main( int argc, char* argv[] )
             if (strcmp(serverVersion, "001"))
             {
                 cout << "server version is not 001" << endl;
-                return 1;
+                break;
             }
             //client has to reply 'suc' indicating 'success' to the server
             if (write(fd, "suc", 3 * sizeof(char)) < 0)
             {
                 cout << "fail to send message to server (" << strerror(errno) << ")" << endl;
-                return 1;
+                break;
             }
             continue;
         } else if (nbytes == OPT_SIZE) {
