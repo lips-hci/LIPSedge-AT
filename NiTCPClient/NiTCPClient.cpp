@@ -141,15 +141,17 @@ int main( int argc, char* argv[] )
             if (strcmp(serverVersion, "001"))
             {
                 cout << "server version is not 001" << endl;
-                break;
+                cout << "switch commnunication to old style" << endl;
+                continue;
+            } else {
+                //client has to reply 'suc' indicating 'success' to the server
+                if (write(fd, "suc", 3 * sizeof(char)) < 0)
+                {
+                    cout << "fail to send message to server (" << strerror(errno) << ")" << endl;
+                    break;
+                }
+                continue;
             }
-            //client has to reply 'suc' indicating 'success' to the server
-            if (write(fd, "suc", 3 * sizeof(char)) < 0)
-            {
-                cout << "fail to send message to server (" << strerror(errno) << ")" << endl;
-                break;
-            }
-            continue;
         } else if (nbytes == OPT_SIZE) {
             //receive TCPServer OPT info, 40 chars
             char optInfo[OPT_SIZE] = {'\0'};
@@ -184,6 +186,9 @@ int main( int argc, char* argv[] )
             readTotal += nbytes;
             //cout << "nbytes = " << nbytes << ", readTotal = " << readTotal << endl;
 #endif
+        } else {
+            cout << "WARN: received " << nbytes << " bytes, expect " << (TOFWRDATA_SIZE + FID_SIZE + RGBWRDATA_SIZE + FID_SIZE + SERIAL_NUM) << " bytes, not matched!" << endl;
+            continue;
         }
 
 #if defined(COMPRESS)
